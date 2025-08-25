@@ -129,7 +129,6 @@ def estimate_vignetting(gray_image, bins=256, max_value=255):
     return center, (a, b, c), entropies
 
 def correct_vignetting(srcfile, dstfile):
-    print(srcfile)
     bins = 256
     max_value = 255
     bgr_image = cv2.imread(srcfile)
