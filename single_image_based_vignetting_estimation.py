@@ -3,7 +3,7 @@
 """
 import math
 import numpy as np
-import cv2
+from PIL import Image
 def compute_centroid(gray_image):
     rows, cols = gray_image.shape
     y_indices, x_indices = np.indices((rows, cols))
@@ -81,7 +81,10 @@ def check_monotonically_increase(parameter_tup, eps=1e-12):
             q_plus = (-2*b + sqrt_disc) / (6*c)
             q_minus = (-2*b - sqrt_disc) / (6*c)
             return q_plus <= 0 or q_minus >= 1
-    
+
+def pil_resize(arr:np.ndarray, size: tuple[int,int], method=Image.BILINEAR) -> np.ndarray:
+    return np.array(Image.fromarray(arr).resize(size, method))
+
 def estimate_vignetting(gray_image, bins=256, max_value=255):
     """
     Coordinate Descent Method
@@ -91,7 +94,7 @@ def estimate_vignetting(gray_image, bins=256, max_value=255):
     gray_image = gray_image.astype(np.float32)
     center = compute_centroid(gray_image)
     if gray_image.shape[0]>300:
-        gray_image_sm = cv2.resize(gray_image, (round(gray_image.shape[1] * 300 / gray_image.shape[0]), 300))
+        gray_image_sm = pil_resize(gray_image, (round(gray_image.shape[1] * 300 / gray_image.shape[0]), 300))
         center_sm = compute_centroid(gray_image_sm)
     else:
         gray_image_sm = gray_image
@@ -131,14 +134,17 @@ def estimate_vignetting(gray_image, bins=256, max_value=255):
 def correct_vignetting(srcfile, dstfile):
     bins = 256
     max_value = 255
-    bgr_image = cv2.imread(srcfile)
-    gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    center, param, _ = estimate_vignetting(gray_image, bins=bins, max_value=max_value)
-    g = compute_vignetting_model(center, gray_image.shape, param)
-    corrected_image = np.empty(bgr_image.shape,dtype=np.uint8)
+    img = Image.open(srcfile)
+    img_gray = img.convert("L")
+    arr_rgb = np.array(img)
+    arr_gray = np.array(img_gray)
+    center, param, _ = estimate_vignetting(arr_gray, bins=bins, max_value=max_value)
+    g = compute_vignetting_model(center, arr_gray.shape, param)
+    arr_corrected = np.empty(arr_rgb.shape,dtype=np.uint8)
     for i in range(3):
-        y = bgr_image[:,:,i].astype(np.float32) * g
+        y = arr_rgb[:,:,i].astype(np.float32) * g
         y = np.clip(y,0,max_value)
-        corrected_image[:,:,i] = y.astype(np.uint8)
-    cv2.imwrite(dstfile, corrected_image)
+        arr_corrected[:,:,i] = y.astype(np.uint8)
+        
+    Image.fromarray(arr_corrected).save(dstfile)
 
